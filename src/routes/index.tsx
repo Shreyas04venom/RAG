@@ -1,9 +1,10 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, Settings2, Sparkles, Cpu, Sun, Moon } from "lucide-react";
+import { BarChart3, LayoutDashboard, Settings2, Sparkles, Cpu, Sun, Moon, History } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AnswerPanel } from "@/components/vera/AnswerPanel";
+import { ChatHistoryDrawer } from "@/components/vera/ChatHistoryDrawer";
 import { DashboardView } from "@/components/vera/DashboardView";
 import { DevPanel } from "@/components/vera/DevPanel";
 import { PipelineInspectorModal } from "@/components/vera/PipelineInspectorModal";
@@ -11,7 +12,7 @@ import { ProcessingVortex } from "@/components/vera/ProcessingVortex";
 import { SettingsModal } from "@/components/vera/SettingsModal";
 import { VoiceCircle } from "@/components/vera/VoiceCircle";
 import { useVera } from "@/hooks/useVera";
-
+import { getSessionHistory, HISTORY_EVENT_NAME } from "@/lib/chat-history";
 import { getStoredAppearance, applyAppearance, type AppearanceConfig } from "@/lib/appearance";
 
 export const Route = createFileRoute("/")({
@@ -46,14 +47,21 @@ function EdithPage() {
   const [devOpen, setDevOpen] = React.useState(false);
   const [pipelineOpen, setPipelineOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [historyCount, setHistoryCount] = React.useState(0);
   const [viewMode, setViewMode] = React.useState<"assistant" | "dashboard">("assistant");
   const [appearance, setAppearance] = React.useState<AppearanceConfig>(getStoredAppearance);
 
-  // Initialize and listen to real-time appearance changes
+  // Initialize and listen to real-time appearance and history changes
   React.useEffect(() => {
     const initial = getStoredAppearance();
     applyAppearance(initial);
     setAppearance(initial);
+
+    setHistoryCount(getSessionHistory().length);
+    const handleHistoryChange = () => {
+      setHistoryCount(getSessionHistory().length);
+    };
 
     const handleAppearanceChange = (e: Event) => {
       const customEvent = e as CustomEvent<AppearanceConfig>;
@@ -63,7 +71,11 @@ function EdithPage() {
     };
 
     window.addEventListener("edith-appearance-change", handleAppearanceChange);
-    return () => window.removeEventListener("edith-appearance-change", handleAppearanceChange);
+    window.addEventListener(HISTORY_EVENT_NAME, handleHistoryChange);
+    return () => {
+      window.removeEventListener("edith-appearance-change", handleAppearanceChange);
+      window.removeEventListener(HISTORY_EVENT_NAME, handleHistoryChange);
+    };
   }, []);
 
   const handleSuggestionClick = (queryText: string) => {
@@ -134,17 +146,17 @@ function EdithPage() {
           </button>
         </nav>
 
-        {/* Right: Dev View & Settings Buttons */}
-        <div className="flex items-center gap-3">
+        {/* Right: Architecture, Telemetry, Theme, Settings & Chat History */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <button
             onClick={() => setPipelineOpen(true)}
-            className="hidden sm:flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-cyan-300 transition-all hover:bg-primary/20 hover:scale-105 cursor-pointer shadow-sm"
+            className="hidden lg:flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300 transition-all hover:bg-primary/20 hover:scale-105 cursor-pointer shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse" /> RAG Architecture
           </button>
           <button
             onClick={() => setDevOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:border-primary/50 hover:bg-primary/10 hover:text-white cursor-pointer shadow-sm"
+            className="hidden sm:flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:border-primary/50 hover:bg-primary/10 hover:text-white cursor-pointer shadow-sm"
           >
             <BarChart3 className="h-3.5 w-3.5 text-accent" /> Telemetry
           </button>
@@ -154,7 +166,7 @@ function EdithPage() {
               applyAppearance({ theme: nextTheme });
               toast.success(`Switched to ${nextTheme === "light" ? "Lumina Light Mode" : "Cosmic Dark Mode"}`);
             }}
-            className="rounded-full border border-white/10 bg-white/5 p-2.5 text-muted-foreground transition-all hover:border-primary/40 hover:bg-white/10 hover:text-white cursor-pointer"
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground transition-all hover:border-primary/40 hover:bg-white/10 hover:text-white cursor-pointer"
             aria-label="Toggle light and dark mode"
             title={appearance.theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
           >
@@ -166,10 +178,27 @@ function EdithPage() {
           </button>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="rounded-full border border-white/10 bg-white/5 p-2.5 text-muted-foreground transition-all hover:border-primary/40 hover:bg-white/10 hover:text-white cursor-pointer"
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground transition-all hover:border-primary/40 hover:bg-white/10 hover:text-white cursor-pointer"
             aria-label="Voice and system settings"
+            title="System Settings"
           >
             <Settings2 className="h-4 w-4" />
+          </button>
+
+          {/* Chat History button at the right side of system settings */}
+          <button
+            onClick={() => setHistoryOpen(true)}
+            className="relative flex items-center gap-1.5 rounded-full border border-primary/50 bg-gradient-to-r from-primary/20 via-accent/15 to-primary/20 px-3 py-2 text-xs font-bold text-cyan-200 transition-all hover:scale-105 hover:border-cyan-400 hover:bg-primary/30 cursor-pointer shadow-md shadow-primary/20"
+            aria-label="Open session chat history"
+            title="Session Chat History (temporary)"
+          >
+            <History className="h-4 w-4 text-cyan-300" />
+            <span className="hidden sm:inline font-medium">History</span>
+            {historyCount > 0 && (
+              <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-sm">
+                {historyCount}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -314,6 +343,20 @@ function EdithPage() {
           setAutoPlay={edith.setAutoPlay}
         />
       )}
+
+      {/* Session Chat History Drawer */}
+      <ChatHistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onSelectHistory={(response) => {
+          setViewMode("assistant");
+          edith.loadHistoryResponse(response);
+        }}
+        onAskSuggestion={(queryText) => {
+          setViewMode("assistant");
+          void edith.submitText(queryText);
+        }}
+      />
     </div>
   );
 }

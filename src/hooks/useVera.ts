@@ -5,6 +5,8 @@ import { startRecording, type Recorder } from "@/lib/audio";
 import { answerQuery, synthesizeSpeech, transcribeAudio } from "@/lib/rag.functions";
 import type { QueryResponse } from "@/lib/rag.types";
 
+import { saveSessionHistoryItem } from "@/lib/chat-history";
+
 export type Phase = "idle" | "listening" | "processing" | "answer";
 export type StageKey = "transcribe" | "retrieve" | "verify" | "generate";
 export type StageState = "pending" | "active" | "done";
@@ -203,7 +205,7 @@ export function useVera() {
   );
 
   const runQuery = React.useCallback(
-    async (queryText: string, sttLatency = 0) => {
+    async (queryText: string, sttLatency = 0, inputMode: "voice" | "text" = "text") => {
       const q = queryText.trim();
       if (!q) return;
 
@@ -222,6 +224,9 @@ export function useVera() {
         setStage("generate", "done");
         setResult(res);
         setPhase("answer");
+
+        // Save response to temporary tab session storage
+        saveSessionHistoryItem(q, res, inputMode);
 
         if (autoPlay && res.answer) {
           const speechPrompt = res.spokenSummary || res.answer;
@@ -248,7 +253,7 @@ export function useVera() {
       setTranscript(queryText.trim());
       setStages({ transcribe: "done", retrieve: "active", verify: "pending", generate: "pending" });
       setPhase("processing");
-      await runQuery(queryText.trim());
+      await runQuery(queryText.trim(), 0, "text");
     },
     [runQuery, stopSpeaking],
   );
@@ -294,13 +299,13 @@ export function useVera() {
         activeTranscriptRef.current = finalQuery;
         setTranscript(finalQuery);
         setStage("transcribe", "done");
-        await runQuery(finalQuery, 120);
+        await runQuery(finalQuery, 120, "voice");
       } catch (err) {
         console.warn("Voice capture error:", err);
         const fallbackQuery = activeTranscriptRef.current || "What is machine learning?";
         setTranscript(fallbackQuery);
         setStage("transcribe", "done");
-        await runQuery(fallbackQuery, 120);
+        await runQuery(fallbackQuery, 120, "voice");
       }
     },
     [runQuery],
@@ -471,6 +476,23 @@ export function useVera() {
     setPhase("idle");
   }, [stopSpeaking]);
 
+  /** Restores an exact historical RAG response directly into the active view */
+  const loadHistoryResponse = React.useCallback((response: QueryResponse) => {
+    stopSpeaking();
+    busyRef.current = false;
+    submittedRef.current = false;
+    setTranscript(response.query);
+    activeTranscriptRef.current = response.query;
+    setStages({
+      transcribe: "done",
+      retrieve: "done",
+      verify: "done",
+      generate: "done",
+    });
+    setResult(response);
+    setPhase("answer");
+  }, [stopSpeaking]);
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -518,5 +540,6 @@ export function useVera() {
     reset,
     play,
     stopSpeaking,
+    loadHistoryResponse,
   };
 }
