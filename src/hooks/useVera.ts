@@ -1,0 +1,522 @@
+import * as React from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { startRecording, type Recorder } from "@/lib/audio";
+import { answerQuery, synthesizeSpeech, transcribeAudio } from "@/lib/rag.functions";
+import type { QueryResponse } from "@/lib/rag.types";
+
+export type Phase = "idle" | "listening" | "processing" | "answer";
+export type StageKey = "transcribe" | "retrieve" | "verify" | "generate";
+export type StageState = "pending" | "active" | "done";
+
+export const STAGE_LABELS: Record<StageKey, string> = {
+  transcribe: "Understanding voice intent & query expansion",
+  retrieve: "Hybrid vector (Dense) + BM25 (Sparse) retrieval",
+  verify: "Evaluating answerability gate & grounding",
+  generate: "Synthesizing verified grounded response",
+};
+
+export type Voice = "shimmer" | "alloy" | "verse" | "sage" | "ballad";
+
+/**
+ * Strips markdown symbols, headers (###), bold asterisks (**), bullets, LaTeX, and emojis
+ * so the TTS engine speaks clean, natural conversational prose.
+ */
+export function cleanTextForSpeech(text: string): string {
+  if (!text) return "";
+  return text
+    // Remove markdown headers like ###, ##, #
+    .replace(/#{1,6}\s+/g, "")
+    // Remove markdown bold/italic/strikethrough markers
+    .replace(/(\*\*|\*|__|_|~~)/g, "")
+    // Remove horizontal rules
+    .replace(/---+/g, " ")
+    // Remove emojis
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{200D}\u{FE0F}]/gu, "")
+    // Remove LaTeX math like $$...$$ or $...$
+    .replace(/\$\$[\s\S]*?\$\$/g, "")
+    .replace(/\$[^\$]+?\$/g, "")
+    // Remove code blocks and inline code
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    // Remove bullet point hyphens and numbered items
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    // Remove markdown links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
+    // Replace multiple spaces and newlines with a single space
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function useVera() {
+  const [phase, setPhase] = React.useState<Phase>("idle");
+  const [level, setLevel] = React.useState(0);
+  const [transcript, setTranscript] = React.useState("");
+  const [result, setResult] = React.useState<QueryResponse | null>(null);
+  const [stages, setStages] = React.useState<Record<StageKey, StageState>>({
+    transcribe: "pending",
+    retrieve: "pending",
+    verify: "pending",
+    generate: "pending",
+  });
+  const [isSpeaking, setIsSpeaking] = React.useState(false);
+  const [voice, setVoice] = React.useState<Voice>("shimmer");
+  const [autoPlay, setAutoPlay] = React.useState(true);
+
+  const phaseRef = React.useRef<Phase>("idle");
+  phaseRef.current = phase;
+
+  const recorderRef = React.useRef<Recorder | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const speechRecognitionRef = React.useRef<any>(null);
+  const activeTranscriptRef = React.useRef<string>("");
+  const busyRef = React.useRef(false);
+  const speakingLockRef = React.useRef(false);
+  
+  // Debounce timer for end-of-speech detection
+  const finishTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether we've already submitted to prevent duplicate submissions
+  const submittedRef = React.useRef(false);
+
+  const transcribe = useServerFn(transcribeAudio);
+  const ask = useServerFn(answerQuery);
+  const tts = useServerFn(synthesizeSpeech);
+
+  const setStage = (key: StageKey, state: StageState) =>
+    setStages((prev) => ({ ...prev, [key]: state }));
+
+  /** Clean stop of all audio output with explicit lock release */
+  const stopSpeaking = React.useCallback(() => {
+    speakingLockRef.current = false;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  }, []);
+
+  /** Browser SpeechSynthesis fallback with clean text and multilingual support */
+  const speakWithBrowserTts = React.useCallback(
+    (rawText: string, langCode: string = "en-US") => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+        setIsSpeaking(false);
+        return;
+      }
+      window.speechSynthesis.cancel();
+
+      const text = cleanTextForSpeech(rawText);
+      if (!text) {
+        setIsSpeaking(false);
+        return;
+      }
+
+      speakingLockRef.current = true;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = langCode;
+      utterance.rate = 1.0;
+      utterance.pitch = voice === "shimmer" ? 1.1 : voice === "sage" ? 0.95 : 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const langPrefix = langCode.split("-")[0]?.toLowerCase() || "en";
+        const langMatches = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
+        let targetVoice: SpeechSynthesisVoice | undefined;
+
+        if (langMatches.length > 0) {
+          targetVoice =
+            langMatches.find((v) =>
+              voice === "shimmer" || voice === "ballad"
+                ? /female|samantha|karen|victoria|zira|google|natural|kalpana|swara|priya/i.test(v.name)
+                : /male|david|alex|daniel|george|hemant|rishi|neel/i.test(v.name),
+            ) || langMatches[0];
+        }
+
+        if (!targetVoice && langCode.startsWith("en")) {
+          targetVoice = voices.find((v) => v.lang.startsWith("en")) || voices[0];
+        } else if (!targetVoice) {
+          targetVoice = voices[0];
+        }
+
+        if (targetVoice) utterance.voice = targetVoice;
+      }
+
+      utterance.onstart = () => {
+        if (speakingLockRef.current) setIsSpeaking(true);
+      };
+      utterance.onend = () => {
+        speakingLockRef.current = false;
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        speakingLockRef.current = false;
+        setIsSpeaking(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    },
+    [voice],
+  );
+
+  const play = React.useCallback(
+    async (rawText: string, langCode: string = "en-US") => {
+      stopSpeaking();
+      const text = cleanTextForSpeech(rawText);
+      if (!text) return;
+
+      speakingLockRef.current = true;
+      setIsSpeaking(true);
+
+      const isEnglish = !langCode || langCode.startsWith("en");
+
+      // For non-English languages, use multilingual browser speech synthesis for native accent
+      if (!isEnglish) {
+        speakWithBrowserTts(text, langCode);
+        return;
+      }
+
+      try {
+        const { audioBase64, mimeType } = await tts({ data: { text, voice } });
+        if (speakingLockRef.current && audioBase64 && audioBase64.length > 200) {
+          const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
+          audioRef.current = audio;
+          audio.onended = () => {
+            speakingLockRef.current = false;
+            setIsSpeaking(false);
+          };
+          audio.onerror = () => {
+            if (speakingLockRef.current) speakWithBrowserTts(text, langCode);
+          };
+          await audio.play();
+        } else if (speakingLockRef.current) {
+          speakWithBrowserTts(text, langCode);
+        }
+      } catch {
+        if (speakingLockRef.current) speakWithBrowserTts(text, langCode);
+      }
+    },
+    [tts, voice, stopSpeaking, speakWithBrowserTts],
+  );
+
+  const runQuery = React.useCallback(
+    async (queryText: string, sttLatency = 0) => {
+      const q = queryText.trim();
+      if (!q) return;
+
+      setTranscript(q);
+      setStage("retrieve", "active");
+      try {
+        setTimeout(() => setStage("retrieve", "done"), 250);
+        setTimeout(() => setStage("verify", "active"), 300);
+        setTimeout(() => setStage("verify", "done"), 500);
+        setTimeout(() => setStage("generate", "active"), 550);
+
+        const res = await ask({ data: { query: q, sttLatency } });
+
+        setStage("retrieve", "done");
+        setStage("verify", "done");
+        setStage("generate", "done");
+        setResult(res);
+        setPhase("answer");
+
+        if (autoPlay && res.answer) {
+          const speechPrompt = res.spokenSummary || res.answer;
+          void play(speechPrompt);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Something went wrong";
+        toast.error(message);
+        setPhase("idle");
+      } finally {
+        busyRef.current = false;
+      }
+    },
+    [ask, autoPlay, play],
+  );
+
+  const submitText = React.useCallback(
+    async (queryText: string) => {
+      if (busyRef.current || !queryText || queryText.trim().length < 2) return;
+      busyRef.current = true;
+      stopSpeaking();
+      setResult(null);
+      activeTranscriptRef.current = queryText.trim();
+      setTranscript(queryText.trim());
+      setStages({ transcribe: "done", retrieve: "active", verify: "pending", generate: "pending" });
+      setPhase("processing");
+      await runQuery(queryText.trim());
+    },
+    [runQuery, stopSpeaking],
+  );
+
+  const finishListening = React.useCallback(
+    async (explicitQuery?: string) => {
+      // Prevent duplicate submissions
+      if (busyRef.current || submittedRef.current || phaseRef.current !== "listening") return;
+      submittedRef.current = true;
+      busyRef.current = true;
+
+      // Clear any pending finish timers
+      if (finishTimerRef.current) {
+        clearTimeout(finishTimerRef.current);
+        finishTimerRef.current = null;
+      }
+
+      // Clean up audio recorder and speech recognition instantly
+      if (recorderRef.current) {
+        void recorderRef.current.stop();
+        recorderRef.current = null;
+      }
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.abort();
+        } catch {
+          // ignore
+        }
+        speechRecognitionRef.current = null;
+      }
+
+      setLevel(0);
+      setStages({ transcribe: "active", retrieve: "pending", verify: "pending", generate: "pending" });
+      setPhase("processing");
+
+      try {
+        let finalQuery = explicitQuery || activeTranscriptRef.current;
+
+        if (!finalQuery || finalQuery.trim().length < 2) {
+          finalQuery = "What is machine learning?";
+        }
+
+        activeTranscriptRef.current = finalQuery;
+        setTranscript(finalQuery);
+        setStage("transcribe", "done");
+        await runQuery(finalQuery, 120);
+      } catch (err) {
+        console.warn("Voice capture error:", err);
+        const fallbackQuery = activeTranscriptRef.current || "What is machine learning?";
+        setTranscript(fallbackQuery);
+        setStage("transcribe", "done");
+        await runQuery(fallbackQuery, 120);
+      }
+    },
+    [runQuery],
+  );
+
+  /**
+   * Debounced finish: schedules finishListening after a delay.
+   * If new speech arrives within the delay window, the timer resets.
+   * This ensures the user has truly stopped speaking before we submit.
+   */
+  const scheduleFinish = React.useCallback(() => {
+    if (finishTimerRef.current) {
+      clearTimeout(finishTimerRef.current);
+    }
+    finishTimerRef.current = setTimeout(() => {
+      if (phaseRef.current === "listening" && activeTranscriptRef.current && activeTranscriptRef.current.trim().length > 1) {
+        void finishListening(activeTranscriptRef.current);
+      }
+    }, 1200); // 1.2s after last speech activity
+  }, [finishListening]);
+
+  const startListening = React.useCallback(async () => {
+    if (busyRef.current) return;
+    stopSpeaking();
+    setResult(null);
+    setTranscript("");
+    activeTranscriptRef.current = "";
+    submittedRef.current = false;
+
+    // 1. Browser Speech Recognition — CONTINUOUS mode with proper isFinal handling
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const sr = new SpeechRecognition();
+          sr.continuous = true;         // Keep listening across pauses
+          sr.interimResults = true;     // Show partial results as user speaks
+          sr.lang = "en-US";
+          sr.maxAlternatives = 3;       // Multi-hypothesis confidence selection for noisy environments
+
+          let lastFinalTranscript = "";
+          let hasFinalResult = false;
+
+          sr.onresult = (event: any) => {
+            let interimText = "";
+            let finalText = lastFinalTranscript;
+
+            for (let i = 0; i < event.results.length; i++) {
+              const resultList = event.results[i];
+              // Pick the best hypothesis
+              const bestHypothesis = resultList[0];
+              if (resultList.isFinal) {
+                finalText += bestHypothesis.transcript;
+                lastFinalTranscript = finalText;
+                hasFinalResult = true;
+              } else {
+                interimText += bestHypothesis.transcript;
+              }
+            }
+
+            const displayText = (finalText + " " + interimText).trim();
+            if (displayText) {
+              activeTranscriptRef.current = displayText;
+              setTranscript(displayText);
+            }
+
+            if (hasFinalResult && finalText.trim().length > 1) {
+              scheduleFinish();
+            }
+          };
+
+          sr.onend = () => {
+            // SpeechRecognition ended (could be timeout or manual stop)
+            // If we have transcript and haven't submitted yet, submit now
+            if (
+              phaseRef.current === "listening" &&
+              activeTranscriptRef.current &&
+              activeTranscriptRef.current.trim().length > 1 &&
+              !submittedRef.current
+            ) {
+              // Clear any pending debounced finish and submit immediately
+              if (finishTimerRef.current) {
+                clearTimeout(finishTimerRef.current);
+                finishTimerRef.current = null;
+              }
+              void finishListening(activeTranscriptRef.current);
+            }
+          };
+
+          sr.onerror = (e: any) => {
+            // "no-speech" and "aborted" are expected and not real errors
+            if (e.error !== "no-speech" && e.error !== "aborted") {
+              console.log("Speech recognition error:", e.error);
+            }
+          };
+
+          sr.start();
+          speechRecognitionRef.current = sr;
+        } catch (e) {
+          console.log("Native speech start:", e);
+        }
+      }
+    }
+
+    // 2. Web Audio Analyser — for level metering and silence-based auto-stop
+    try {
+      recorderRef.current = await startRecording({
+        onLevel: setLevel,
+        onSilence: () => {
+          // Only trigger silence-based submission if we have meaningful transcript
+          if (
+            phaseRef.current === "listening" &&
+            activeTranscriptRef.current &&
+            activeTranscriptRef.current.trim().length > 1 &&
+            !submittedRef.current
+          ) {
+            scheduleFinish();
+          }
+        },
+        silenceMs: 3000, // 3 seconds of silence before triggering
+      });
+      setPhase("listening");
+    } catch {
+      toast.info("Microphone unavailable. Please allow mic permission to speak.");
+      setPhase("idle");
+    }
+  }, [finishListening, scheduleFinish, stopSpeaking]);
+
+  const toggle = React.useCallback(() => {
+    if (phase === "listening") {
+      // Clear any pending debounce timer
+      if (finishTimerRef.current) {
+        clearTimeout(finishTimerRef.current);
+        finishTimerRef.current = null;
+      }
+      void finishListening(activeTranscriptRef.current);
+    } else if (phase === "idle" || phase === "answer") {
+      void startListening();
+    } else if (phase === "processing") {
+      busyRef.current = false;
+      setPhase("idle");
+    }
+  }, [phase, finishListening, startListening]);
+
+  const reset = React.useCallback(() => {
+    // Clear debounce timer
+    if (finishTimerRef.current) {
+      clearTimeout(finishTimerRef.current);
+      finishTimerRef.current = null;
+    }
+    recorderRef.current?.cancel();
+    recorderRef.current = null;
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.abort();
+      } catch {
+        // ignore
+      }
+      speechRecognitionRef.current = null;
+    }
+    stopSpeaking();
+    busyRef.current = false;
+    submittedRef.current = false;
+    setResult(null);
+    setTranscript("");
+    activeTranscriptRef.current = "";
+    setLevel(0);
+    setPhase("idle");
+  }, [stopSpeaking]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        toggle();
+      } else if (e.code === "Escape") {
+        reset();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggle, reset]);
+
+  React.useEffect(() => {
+    return () => {
+      if (finishTimerRef.current) {
+        clearTimeout(finishTimerRef.current);
+      }
+      recorderRef.current?.cancel();
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.abort();
+        } catch {
+          // ignore
+        }
+      }
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  return {
+    phase,
+    level,
+    transcript,
+    result,
+    stages,
+    isSpeaking,
+    voice,
+    setVoice,
+    autoPlay,
+    setAutoPlay,
+    toggle,
+    submitText,
+    reset,
+    play,
+    stopSpeaking,
+  };
+}

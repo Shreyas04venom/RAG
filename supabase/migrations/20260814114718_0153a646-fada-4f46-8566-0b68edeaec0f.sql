@@ -1,0 +1,1 @@
+ALTER FUNCTION public.match_chunks(vector, text, int, int) SET search_path = public, extensions;
