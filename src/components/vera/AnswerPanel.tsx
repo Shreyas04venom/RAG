@@ -32,24 +32,24 @@ export interface LanguageOption {
 }
 
 export const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  { code: "en-US", shortCode: "en", name: "English", nativeName: "English", flag: "🇺🇸" },
+  { code: "en-IN", shortCode: "en", name: "English", nativeName: "English", flag: "🇮🇳" },
   { code: "hi-IN", shortCode: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳" },
-  { code: "es-ES", shortCode: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸" },
-  { code: "fr-FR", shortCode: "fr", name: "French", nativeName: "Français", flag: "🇫🇷" },
-  { code: "de-DE", shortCode: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪" },
-  { code: "ja-JP", shortCode: "ja", name: "Japanese", nativeName: "日本語", flag: "🇯🇵" },
-  { code: "zh-CN", shortCode: "zh", name: "Chinese", nativeName: "中文", flag: "🇨🇳" },
-  { code: "ar-SA", shortCode: "ar", name: "Arabic", nativeName: "العربية", flag: "🇸🇦" },
-  { code: "ru-RU", shortCode: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺" },
-  { code: "pt-BR", shortCode: "pt", name: "Portuguese", nativeName: "Português", flag: "🇧🇷" },
-  { code: "it-IT", shortCode: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹" },
+  { code: "as-IN", shortCode: "as", name: "Assamese", nativeName: "অসমীয়া", flag: "🇮🇳" },
   { code: "bn-IN", shortCode: "bn", name: "Bengali", nativeName: "বাংলা", flag: "🇮🇳" },
-  { code: "ko-KR", shortCode: "ko", name: "Korean", nativeName: "한국어", flag: "🇰🇷" },
-  { code: "nl-NL", shortCode: "nl", name: "Dutch", nativeName: "Nederlands", flag: "🇳🇱" },
-  { code: "tr-TR", shortCode: "tr", name: "Turkish", nativeName: "Türkçe", flag: "🇹🇷" },
+  { code: "gu-IN", shortCode: "gu", name: "Gujarati", nativeName: "ગુજરાતી", flag: "🇮🇳" },
+  { code: "kn-IN", shortCode: "kn", name: "Kannada", nativeName: "ಕನ್ನಡ", flag: "🇮🇳" },
+  { code: "ml-IN", shortCode: "ml", name: "Malayalam", nativeName: "മലയാളം", flag: "🇮🇳" },
+  { code: "mr-IN", shortCode: "mr", name: "Marathi", nativeName: "मराठी", flag: "🇮🇳" },
+  { code: "ne-NP", shortCode: "ne", name: "Nepali", nativeName: "नेपाली", flag: "🇳🇵" },
+  { code: "or-IN", shortCode: "or", name: "Odia", nativeName: "ଓଡ଼ିଆ", flag: "🇮🇳" },
+  { code: "pa-IN", shortCode: "pa", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", flag: "🇮🇳" },
+  { code: "sa-IN", shortCode: "sa", name: "Sanskrit", nativeName: "संस्कृतम्", flag: "🇮🇳" },
+  { code: "ta-IN", shortCode: "ta", name: "Tamil", nativeName: "தமிழ்", flag: "🇮🇳" },
+  { code: "te-IN", shortCode: "te", name: "Telugu", nativeName: "తెలుగు", flag: "🇮🇳" },
+  { code: "ur-IN", shortCode: "ur", name: "Urdu", nativeName: "اردو", flag: "🇮🇳" },
 ];
 
-const QUICK_LANGUAGES = SUPPORTED_LANGUAGES.slice(0, 6);
+const QUICK_LANGUAGES = SUPPORTED_LANGUAGES.slice(0, 5);
 
 interface AnswerPanelProps {
   result: QueryResponse;
