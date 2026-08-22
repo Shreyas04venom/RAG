@@ -246,6 +246,62 @@ export function PipelineInspectorModal({ onClose }: PipelineInspectorModalProps)
                   </p>
                 </div>
               </div>
+
+              {/* AI4Bharat MSMARCO-XI Dataset Integration Hub */}
+              <div className="mt-6 rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 via-black/40 to-primary/10 p-6 backdrop-blur-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-primary/20 border border-cyan-500/30 text-cyan-400">
+                      <Database className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>AI4Bharat MSMARCO-XI Grounding Corpus</span>
+                        <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[9px] font-mono text-cyan-300">
+                          14 Indic Languages
+                        </span>
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Official Indic passage retrieval benchmark from AI4Bharat & Hugging Face.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="https://huggingface.co/datasets/ai4bharat/MSMARCO-XI"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all hover:scale-105"
+                  >
+                    <span>View on Hugging Face</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                  {[
+                    { code: "as", name: "Assamese", train: "asmtrain.jsonl" },
+                    { code: "bn", name: "Bengali", train: "bentrain.jsonl" },
+                    { code: "gu", name: "Gujarati", train: "gutrain.jsonl" },
+                    { code: "hi", name: "Hindi", train: "hintrain.jsonl" },
+                    { code: "kn", name: "Kannada", train: "kantrain.jsonl" },
+                    { code: "ml", name: "Malayalam", train: "maltrain.jsonl" },
+                    { code: "mr", name: "Marathi", train: "martrain.jsonl" },
+                    { code: "ne", name: "Nepali", train: "neptrain.jsonl" },
+                    { code: "or", name: "Odia", train: "ortrain.jsonl" },
+                    { code: "pa", name: "Punjabi", train: "pantrain.jsonl" },
+                    { code: "sa", name: "Sanskrit", train: "santrain.jsonl" },
+                    { code: "ta", name: "Tamil", train: "tamtrain.jsonl" },
+                    { code: "te", name: "Telugu", train: "teltrain.jsonl" },
+                    { code: "ur", name: "Urdu", train: "urdtrain.jsonl" },
+                  ].map((item) => (
+                    <div key={item.code} className="rounded-xl border border-white/5 bg-white/[0.02] p-2 text-center hover:border-cyan-500/30 transition-colors">
+                      <span className="font-mono text-xs font-bold text-cyan-400 block">{item.code}</span>
+                      <span className="text-[10px] text-foreground block font-medium">{item.name}</span>
+                      <span className="text-[8px] text-muted-foreground block font-mono mt-0.5">{item.train}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             /* 40+ FEATURES MATRIX */

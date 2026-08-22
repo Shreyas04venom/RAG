@@ -526,7 +526,7 @@ export function AnswerPanel({
                 {speaking ? <Pause className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 {speaking
                   ? "Pause Voice"
-                  : currentLang.code === "en-US"
+                  : currentLang.shortCode === "en"
                   ? "+ Listen Voice"
                   : `+ Listen (${currentLang.nativeName})`}
               </button>
