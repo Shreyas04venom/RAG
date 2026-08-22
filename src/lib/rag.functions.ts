@@ -4,7 +4,7 @@ import type { Analytics, QueryResponse } from "@/lib/rag.types";
 
 /** Voice -> text. Speech recognition through gateway or audio bridge. */
 export const transcribeAudio = createServerFn({ method: "POST" })
-  .inputValidator((data) =>
+  .validator((data: unknown) =>
     z
       .object({
         audioBase64: z.string().min(16, "Recording data required"),
@@ -33,7 +33,7 @@ export const transcribeAudio = createServerFn({ method: "POST" })
  * Falls back to local knowledge base + Wikipedia API for universal coverage.
  */
 export const answerQuery = createServerFn({ method: "POST" })
-  .inputValidator((data) =>
+  .validator((data: unknown) =>
     z
       .object({
         query: z.string().min(1).max(500),
@@ -49,7 +49,7 @@ export const answerQuery = createServerFn({ method: "POST" })
 
 /** Text -> speech for the spoken answer. */
 export const synthesizeSpeech = createServerFn({ method: "POST" })
-  .inputValidator((data) =>
+  .validator((data: unknown) =>
     z
       .object({
         text: z.string().min(1).max(4000),
@@ -65,7 +65,7 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
 
 /** Multilingual translation for verified responses. */
 export const translateContent = createServerFn({ method: "POST" })
-  .inputValidator((data) =>
+  .validator((data: unknown) =>
     z
       .object({
         text: z.string().min(1),

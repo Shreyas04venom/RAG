@@ -13,7 +13,7 @@ import { SettingsModal } from "@/components/vera/SettingsModal";
 import { VoiceCircle } from "@/components/vera/VoiceCircle";
 import { useVera } from "@/hooks/useVera";
 import { getSessionHistory, HISTORY_EVENT_NAME } from "@/lib/chat-history";
-import { getStoredAppearance, applyAppearance, type AppearanceConfig } from "@/lib/appearance";
+import { getStoredAppearance, applyAppearance, DEFAULT_APPEARANCE, type AppearanceConfig } from "@/lib/appearance";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -50,7 +50,7 @@ function EdithPage() {
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [historyCount, setHistoryCount] = React.useState(0);
   const [viewMode, setViewMode] = React.useState<"assistant" | "dashboard">("assistant");
-  const [appearance, setAppearance] = React.useState<AppearanceConfig>(getStoredAppearance);
+  const [appearance, setAppearance] = React.useState<AppearanceConfig>(DEFAULT_APPEARANCE);
 
   // Initialize and listen to real-time appearance and history changes
   React.useEffect(() => {
