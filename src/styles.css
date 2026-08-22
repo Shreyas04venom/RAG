@@ -143,6 +143,7 @@
 [data-theme="light"] .glass-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
   backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(99, 102, 241, 0.2);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
@@ -173,26 +174,14 @@
   background-color: rgba(15, 23, 42, 0.5) !important;
 }
 
-[data-theme="light"] .bg-\[\#0a0e20\]\/95,
-[data-theme="light"] .bg-\[\#060814\] {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-
 [data-theme="light"] .border-white\/10,
 [data-theme="light"] .border-white\/15,
 [data-theme="light"] .border-white\/20 {
   border-color: rgba(15, 23, 42, 0.12) !important;
 }
 
-[data-theme="light"] .bg-white\/5,
-[data-theme="light"] .bg-white\/\[0\.02\],
-[data-theme="light"] .bg-white\/\[0\.03\] {
+[data-theme="light"] .bg-white\/5 {
   background-color: rgba(15, 23, 42, 0.04) !important;
-}
-
-[data-theme="light"] .hover\:bg-white\/5:hover,
-[data-theme="light"] .hover\:bg-white\/10:hover {
-  background-color: rgba(15, 23, 42, 0.08) !important;
 }
 
 [data-theme="light"] .text-muted-foreground {
@@ -205,10 +194,6 @@
 
 [data-theme="light"] .glow-cyan {
   box-shadow: 0 0 40px rgba(2, 132, 199, 0.2), 0 0 80px rgba(99, 102, 241, 0.15);
-}
-
-[data-theme="light"] .animate-\[twinkle_4s_ease-in-out_infinite\] {
-  background-color: rgba(99, 102, 241, 0.35) !important;
 }
 
 /* Typography Font Scaling */
@@ -238,10 +223,12 @@ html[data-font-size="expanded"] {
   body {
     background-color: var(--background);
     color: var(--color-foreground);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     transition: background-color 0.4s ease, color 0.4s ease;
-    @apply antialiased;
   }
 }
 
@@ -257,6 +244,7 @@ html[data-font-size="expanded"] {
   .glass-card {
     background: linear-gradient(135deg, rgba(22, 31, 56, 0.7) 0%, rgba(13, 18, 36, 0.8) 100%);
     backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
