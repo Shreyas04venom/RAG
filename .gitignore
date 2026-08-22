@@ -20,8 +20,9 @@ dist-ssr
 !.env.example
 .dev.vars
 
-# Wrangler / Cloudflare
+# Wrangler / Cloudflare / Netlify
 .wrangler/
+.netlify/
 
 # Editor directories and files
 .vscode/*
